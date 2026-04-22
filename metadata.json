@@ -1,0 +1,6 @@
+{
+  "name": "JetSmart Fly Analytics",
+  "description": "Dashboard for analyzing JetSmart All You Can Fly flight availability and taxes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
