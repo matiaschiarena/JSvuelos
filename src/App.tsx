@@ -70,7 +70,15 @@ interface FlightData {
   availability: Availability[];
 }
 
-const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS_OF_WEEK_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS_OF_WEEK_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+const DAY_INITIALS: Record<string, string> = {
+  "Monday": "L", "Tuesday": "M", "Wednesday": "m", "Thursday": "J", "Friday": "V", "Saturday": "S", "Sunday": "D",
+  "Lunes": "L", "Martes": "M", "Miércoles": "m", "Jueves": "J", "Viernes": "V", "Sábado": "S", "Domingo": "D"
+};
+const DAY_MAP_EN_TO_ES: Record<string, string> = {
+  "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles", "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
+};
 
 const BUE_AIRPORTS = ["AEP", "EZE"];
 
@@ -379,12 +387,13 @@ export default function App() {
     const totalFlights = recordedDays.reduce((acc, curr) => acc + curr.count, 0);
     const avgTax = recordedDays.reduce((acc, curr) => acc + (curr.count > 0 ? curr.tax : 0), 0) / (successfulDays || 1);
     
-    const dayStats = DAYS_OF_WEEK.map(day => {
-      const dayData = recordedDays.filter(a => a.dayOfWeek === day);
+    const dayStats = DAYS_OF_WEEK_EN.map((dayEn, index) => {
+      const dayEs = DAYS_OF_WEEK_ES[index];
+      const dayData = recordedDays.filter(a => a.dayOfWeek === dayEn);
       const dayAvailable = dayData.filter(a => a.count > 0).length;
       const dayTotal = dayData.length;
       return {
-        name: day,
+        name: dayEs,
         percentage: dayTotal > 0 ? (dayAvailable / dayTotal) * 100 : 0,
         successCount: dayAvailable,
         totalCount: dayTotal,
@@ -918,152 +927,203 @@ export default function App() {
             </div>
             <div className="flex flex-wrap gap-2.5">
               {aggregatedData?.availability.map((day, idx) => (
-                <motion.div 
-                  key={idx}
-                  whileHover={{ scale: 1.15, zIndex: 10 }}
-                  title={`${day.date}: ${day.count} vuelos detectados`}
-                  className={`
-                    w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black transition-all cursor-crosshair relative group overflow-hidden
-                    ${day.count > 0 ? 'bg-brand text-slate-900 shadow-lg shadow-brand/20' : 'bg-rose-500/20 text-rose-300/80 border border-rose-500/10'}
-                  `}
-                >
-                  <span className="relative z-10">{day.date.split('-')[2]}</span>
-                  {showSweeper && day.count > 0 && <div className="sonar-sweeper opacity-0 group-hover:opacity-100 transition-opacity" />}
-                  {day.count > 0 && <div className="absolute inset-0 bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity" />}
-                </motion.div>
+                <div key={idx} className="flex flex-col items-center gap-1">
+                  <motion.div 
+                    whileHover={{ scale: 1.15, zIndex: 10 }}
+                    title={`${day.date}: ${day.count} vuelos detectados`}
+                    className={`
+                      w-9 h-9 rounded-lg flex items-center justify-center text-[11px] font-black transition-all cursor-crosshair relative group overflow-hidden
+                      ${day.count > 0 ? 'bg-brand text-slate-900 shadow-lg shadow-brand/20' : 'bg-rose-500/20 text-rose-300/80 border border-rose-500/10'}
+                    `}
+                  >
+                    <span className="relative z-10">{day.date.split('-')[2]}</span>
+                    {showSweeper && day.count > 0 && <div className="sonar-sweeper opacity-0 group-hover:opacity-100 transition-opacity" />}
+                    {day.count > 0 && <div className="absolute inset-0 bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity" />}
+                  </motion.div>
+                  <span className="text-[8px] font-black text-slate-600">{DAY_INITIALS[day.dayOfWeek] || ''}</span>
+                </div>
               ))}
             </div>
           </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
-          <div 
-            className="glass-panel p-6 cursor-pointer group active:scale-[0.98] transition-all lg:col-span-2"
-            onClick={toggleChartType}
-            title="Siguiente gráfico (Clic para cambiar)"
-          >
-            <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-3">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                Probabilidades por día
-              </h3>
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold text-slate-600 uppercase">Tipo: {chartType}</span>
-                <ChevronRight className="w-3 h-3 text-slate-600 group-hover:text-brand group-hover:translate-x-1 transition-all" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
+            <div className="lg:col-span-2 space-y-5">
+              {/* Probability Chart */}
+              <div 
+                className="glass-panel p-6 cursor-pointer group active:scale-[0.98] transition-all"
+                onClick={toggleChartType}
+                title="Siguiente gráfico (Clic para cambiar)"
+              >
+                <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                    Probabilidades de Canje por Día
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                       <div className="w-1.5 h-1.5 rounded-full bg-brand" />
+                       <span className="text-[8px] font-bold text-slate-600 uppercase">Probabilidad %</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold text-slate-600 uppercase">Tipo: {chartType}</span>
+                      <ChevronRight className="w-3 h-3 text-slate-600 group-hover:text-brand group-hover:translate-x-1 transition-all" />
+                    </div>
+                  </div>
+                </div>
+                <div className="h-56 w-full relative overflow-hidden group">
+                  {showSweeper && (
+                    <div className="sonar-sweeper opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
+                  <ResponsiveContainer width="100%" height="100%">
+                    {chartType === 'bar' ? (
+                      <BarChart data={stats?.dayStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#475569" 
+                          fontSize={10} 
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(val) => val.substring(0, 3).toUpperCase()} 
+                        />
+                        <YAxis stroke="#475569" fontSize={10} axisLine={false} tickLine={false} unit="%" />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
+                          itemStyle={{ color: '#fff' }}
+                          cursor={{ fill: '#1e293b', opacity: 0.4 }}
+                          formatter={(value) => [`${(value as number).toFixed(1)}%`, "Probabilidad"]}
+                        />
+                        <Bar dataKey="percentage" radius={[4, 4, 0, 0]} barSize={32}>
+                          {stats?.dayStats.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={themeColor} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    ) : chartType === 'line' ? (
+                      <LineChart data={stats?.dayStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#475569" 
+                          fontSize={10} 
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(val) => val.substring(0, 3).toUpperCase()} 
+                        />
+                        <YAxis stroke="#475569" fontSize={10} axisLine={false} tickLine={false} unit="%" />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
+                          itemStyle={{ color: '#fff' }}
+                          formatter={(value) => [`${(value as number).toFixed(1)}%`, "Probabilidad"]}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="percentage" 
+                          stroke={themeColor} 
+                          strokeWidth={3} 
+                          dot={{ fill: themeColor, strokeWidth: 2, r: 4 }} 
+                          activeDot={{ r: 6, strokeWidth: 0 }}
+                        />
+                      </LineChart>
+                    ) : chartType === 'area' ? (
+                      <AreaChart data={stats?.dayStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorPerc" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={themeColor} stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor={themeColor} stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#475569" 
+                          fontSize={10} 
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(val) => val.substring(0, 3).toUpperCase()} 
+                        />
+                        <YAxis stroke="#475569" fontSize={10} axisLine={false} tickLine={false} unit="%" />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
+                          formatter={(value) => [`${(value as number).toFixed(1)}%`, "Probabilidad"]}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="percentage" 
+                          stroke={themeColor} 
+                          fillOpacity={1} 
+                          fill="url(#colorPerc)" 
+                          strokeWidth={3}
+                        />
+                      </AreaChart>
+                    ) : (
+                      <PieChart>
+                        <Pie
+                          data={stats?.dayStats}
+                          dataKey="percentage"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={60}
+                          fill="#334155"
+                          label={({ name, percentage }) => (percentage > 5 && name) ? `${String(name).substring(0, 3)}` : ''}
+                          labelLine={false}
+                        >
+                          {stats?.dayStats.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.percentage > 50 ? themeColor : '#1e293b'} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
+                          formatter={(value) => [`${(value as number).toFixed(1)}%`, "Probabilidad"]}
+                        />
+                      </PieChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Frequency Chart */}
+              <div className="glass-panel p-6 group transition-all">
+                <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                    Volumen de Vuelos Detectados (Promedio)
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                       <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                       <span className="text-[8px] font-bold text-slate-600 uppercase">Promedio Vuelos</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="h-44 w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={stats?.dayStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#475569" 
+                        fontSize={10} 
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(val) => val.substring(0, 3).toUpperCase()} 
+                      />
+                      <YAxis stroke="#475569" fontSize={10} axisLine={false} tickLine={false} domain={[0, 'dataMax + 1']} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
+                        itemStyle={{ color: '#fff' }}
+                        cursor={{ fill: '#1e293b', opacity: 0.4 }}
+                        formatter={(value) => [`${(value as number).toFixed(2)}`, "Vuelos (Promedio)"]}
+                      />
+                      <Bar dataKey="avgFlights" radius={[4, 4, 0, 0]} barSize={24}>
+                        {stats?.dayStats.map((entry, index) => (
+                          <Cell key={`cell-vol-${index}`} fill="#f59e0b" fillOpacity={0.8} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
-            <div className="h-56 w-full relative overflow-hidden group">
-              {showSweeper && (
-                <div className="sonar-sweeper opacity-0 group-hover:opacity-100 transition-opacity" />
-              )}
-              <ResponsiveContainer width="100%" height="100%">
-                {chartType === 'bar' ? (
-                  <BarChart data={stats?.dayStats}>
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#475569" 
-                      fontSize={10} 
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(val) => val.substring(0, 3).toUpperCase()} 
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
-                      itemStyle={{ color: themeColor }}
-                      cursor={{ fill: '#1e293b' }}
-                      formatter={(value, name) => {
-                        if (name === "Success %") return [`${(value as number).toFixed(1)}%`, "Probabilidad"];
-                        return [value, name];
-                      }}
-                      labelFormatter={(label, payload) => {
-                        const data = payload[0]?.payload;
-                        if (!data) return label;
-                        return `${label}: ${data.successCount} de ${data.totalCount} días operativos`;
-                      }}
-                    />
-                    <Bar dataKey="percentage" name="Success %" radius={[4, 4, 0, 0]} barSize={24}>
-                      {stats?.dayStats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.percentage > 50 ? themeColor : '#334155'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                ) : chartType === 'line' ? (
-                  <LineChart data={stats?.dayStats}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#475569" 
-                      fontSize={10} 
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(val) => val.substring(0, 3).toUpperCase()} 
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
-                      itemStyle={{ color: themeColor }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="percentage" 
-                      name="Success %" 
-                      stroke={themeColor} 
-                      strokeWidth={3} 
-                      dot={{ fill: themeColor, strokeWidth: 2, r: 4 }} 
-                      activeDot={{ r: 6, strokeWidth: 0 }}
-                    />
-                  </LineChart>
-                ) : chartType === 'area' ? (
-                  <AreaChart data={stats?.dayStats}>
-                    <defs>
-                      <linearGradient id="colorPerc" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={themeColor} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={themeColor} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#475569" 
-                      fontSize={10} 
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(val) => val.substring(0, 3).toUpperCase()} 
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="percentage" 
-                      stroke={themeColor} 
-                      fillOpacity={1} 
-                      fill="url(#colorPerc)" 
-                      strokeWidth={3}
-                    />
-                  </AreaChart>
-                ) : (
-                  <PieChart>
-                    <Pie
-                      data={stats?.dayStats}
-                      dataKey="percentage"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={60}
-                      fill="#334155"
-                      label={({ name, percentage }) => (percentage > 0 && name) ? `${String(name).substring(0, 3)}` : ''}
-                      labelLine={false}
-                    >
-                      {stats?.dayStats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.percentage > 50 ? themeColor : '#1e293b'} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' }}
-                    />
-                  </PieChart>
-                )}
-              </ResponsiveContainer>
-            </div>
-          </div>
 
           <div className="glass-panel p-6 flex flex-col justify-between overflow-hidden">
             <div>
@@ -1085,6 +1145,12 @@ export default function App() {
                     <span className="text-sm font-black text-white">Estable</span>
                     <TrendingUp className="w-4 h-4 text-green-500" />
                   </div>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-800/20 border border-slate-800/50">
+                  <p className="text-[10px] text-slate-500 uppercase font-black mb-1">Volumen Detectado</p>
+                  <p className="text-sm font-black text-white">
+                    {stats?.totalRecorded ? `${stats.totalRecorded} muestras` : '--'}
+                  </p>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-800/20 border border-slate-800/50">
                   <p className="text-[10px] text-slate-500 uppercase font-black mb-1">Región de Análisis</p>
