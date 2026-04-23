@@ -8,7 +8,7 @@ This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/88cb2648-1ee4-4a59-820b-e82fb7bcc0f6
 
-## Run Locally   uii
+## Run Locally
 
 **Prerequisites:**  Node.js
 
@@ -18,5 +18,3 @@ View your app in AI Studio: https://ai.studio/apps/88cb2648-1ee4-4a59-820b-e82fb
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
-   
-Update para forzar redeploy en Netlify
