@@ -28,6 +28,34 @@
   --theme-primary-dim: rgba(var(--theme-primary), 0.2);
 }
 
+[data-theme='ruby'] {
+  --theme-primary: 220, 38, 38; /* Red 600 */
+  --theme-primary-hex: #dc2626;
+  --theme-primary-glow: rgba(var(--theme-primary), 0.5);
+  --theme-primary-dim: rgba(var(--theme-primary), 0.15);
+}
+
+[data-theme='emerald'] {
+  --theme-primary: 16, 185, 129; /* Emerald 500 */
+  --theme-primary-hex: #10b981;
+  --theme-primary-glow: rgba(var(--theme-primary), 0.5);
+  --theme-primary-dim: rgba(var(--theme-primary), 0.15);
+}
+
+[data-theme='cobalt'] {
+  --theme-primary: 37, 99, 235; /* Blue 600 */
+  --theme-primary-hex: #2563eb;
+  --theme-primary-glow: rgba(var(--theme-primary), 0.5);
+  --theme-primary-dim: rgba(var(--theme-primary), 0.15);
+}
+
+[data-theme='sunset'] {
+  --theme-primary: 249, 115, 22; /* Orange 500 */
+  --theme-primary-hex: #f97316;
+  --theme-primary-glow: rgba(var(--theme-primary), 0.5);
+  --theme-primary-dim: rgba(var(--theme-primary), 0.15);
+}
+
 @theme {
   --color-brand: var(--theme-primary-hex);
   --color-bg-panel: #0f172a;
@@ -39,15 +67,25 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+[data-mode='deep'] {
+  --color-bg-main: #000000;
+  --color-bg-panel: #0a0a0a;
+}
+
 @layer base {
   body {
     @apply bg-[var(--color-bg-main)] text-[var(--color-text-main)] font-sans antialiased selection:bg-[var(--theme-primary-dim)] selection:text-[var(--color-brand)];
     background-image: 
-      radial-gradient(at 0% 0%, hsla(192, 91%, 13%, 1) 0, transparent 50%), 
+      radial-gradient(at 0% 0%, rgba(var(--theme-primary), 0.08) 0, transparent 50%), 
       radial-gradient(at 100% 0%, hsla(217, 91%, 9%, 1) 0, transparent 50%),
-      radial-gradient(at 100% 100%, hsla(180, 100%, 5%, 1) 0, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(var(--theme-primary), 0.05) 0, transparent 50%),
       radial-gradient(at 0% 100%, hsla(220, 100%, 8%, 1) 0, transparent 50%);
     background-attachment: fixed;
+    transition: background-image 0.5s ease, background-color 0.5s ease;
+  }
+
+  [data-mode='deep'] body {
+    background-image: none !important;
   }
 }
 
@@ -55,8 +93,16 @@
   @apply bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-2xl shadow-xl shadow-black/20 overflow-hidden transition-all duration-300;
 }
 
+[data-mode='deep'] .glass-panel {
+  @apply bg-black/60 border-white/10;
+}
+
 .stat-card {
   @apply bg-slate-900/50 backdrop-blur-sm border border-white/5 rounded-2xl p-5 flex flex-col gap-1 transition-all duration-300 hover:border-brand/30 hover:bg-slate-900/70;
+}
+
+[data-mode='deep'] .stat-card {
+  @apply bg-black/40 border-white/10;
 }
 
 .custom-scrollbar::-webkit-scrollbar {

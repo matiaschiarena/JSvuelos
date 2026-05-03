@@ -40,7 +40,7 @@ import {
 import { motion, AnimatePresence, useSpring, useTransform } from 'motion/react';
 import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isSameDay, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // Helper for rolling numbers
@@ -171,6 +171,7 @@ const QUICK_ROUTES = [
   { o: "AEP", d: "SCL", label: "AEP-SCL", key: "7" },
 ];
 
+type ViewMode = 'detailed' | 'multi' | 'calendar' | 'daily';
 type ChartType = 'bar' | 'line' | 'pie' | 'area';
 
 const getAirportLabel = (code: string) => {
@@ -191,13 +192,18 @@ export default function App() {
   const [chartType, setChartType] = useState<ChartType>('bar');
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [theme, setTheme] = useState<'default' | 'scanner' | 'amber' | 'nebula'>('default');
-  const [showSweeper, setShowSweeper] = useState(true);
+  const [theme, setTheme] = useState<'default' | 'scanner' | 'amber' | 'nebula' | 'ruby' | 'emerald' | 'cobalt' | 'sunset'>('default');
+  const [isDeepMode, setIsDeepMode] = useState(false);
+  const [showSweeper, setShowSweeper] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-mode', isDeepMode ? 'deep' : 'glass');
+  }, [isDeepMode]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-sweeper', showSweeper ? 'on' : 'off');
@@ -227,14 +233,20 @@ export default function App() {
 
   const [notification, setNotification] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [viewMode, setViewMode] = useState<'detailed' | 'multi' | 'calendar'>('detailed');
+  const [viewMode, setViewMode] = useState<ViewMode>('detailed');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const dashboardRef = useRef<HTMLDivElement>(null);
-
+  
   const themeColor = useMemo(() => {
     switch(theme) {
       case 'scanner': return '#22c55e';
       case 'amber': return '#f59e0b';
       case 'nebula': return '#a855f7';
+      case 'ruby': return '#dc2626';
+      case 'emerald': return '#10b981';
+      case 'cobalt': return '#2563eb';
+      case 'sunset': return '#f97316';
       default: return '#22d3ee';
     }
   }, [theme]);
@@ -379,6 +391,50 @@ export default function App() {
     };
   }, [data, origin, destination, groupBUE]);
 
+  const { minMonth, maxMonth } = useMemo(() => {
+    if (!aggregatedData?.availability || aggregatedData.availability.length === 0) {
+      const now = new Date();
+      return { minMonth: startOfMonth(now), maxMonth: endOfMonth(now) };
+    }
+    
+    const dates = aggregatedData.availability
+      .filter(a => a.isRecorded)
+      .map(a => new Date(a.date));
+      
+    if (dates.length === 0) {
+      const now = new Date();
+      return { minMonth: startOfMonth(now), maxMonth: endOfMonth(now) };
+    }
+
+    const min = new Date(Math.min(...dates.map(d => d.getTime())));
+    const max = new Date(Math.max(...dates.map(d => d.getTime())));
+    
+    return { 
+      minMonth: startOfMonth(min), 
+      maxMonth: startOfMonth(max) 
+    };
+  }, [aggregatedData]);
+
+  const canGoPrev = currentMonth > minMonth;
+  const canGoNext = currentMonth < maxMonth;
+
+  const nextMonth = () => canGoNext && setCurrentMonth(prev => addMonths(prev, 1));
+  const prevMonth = () => canGoPrev && setCurrentMonth(prev => subMonths(prev, 1));
+
+  const nextDay = () => {
+    const next = new Date(selectedDate);
+    next.setDate(next.getDate() + 1);
+    const maxDate = aggregatedData?.availability ? new Date(Math.max(...aggregatedData.availability.filter(a => a.isRecorded).map(d => new Date(d.date).getTime()))) : new Date();
+    if (next <= maxDate) setSelectedDate(next);
+  };
+
+  const prevDay = () => {
+    const prev = new Date(selectedDate);
+    prev.setDate(prev.getDate() - 1);
+    const minDate = aggregatedData?.availability ? new Date(Math.min(...aggregatedData.availability.filter(a => a.isRecorded).map(d => new Date(d.date).getTime()))) : new Date();
+    if (prev >= minDate) setSelectedDate(prev);
+  };
+
   const stats = useMemo(() => {
     if (!aggregatedData) return null;
     const recordedDays = aggregatedData.availability.filter(a => a.isRecorded);
@@ -518,7 +574,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#020617]">
+      <div className="min-h-screen flex items-center justify-center bg-bg-main">
         <div className="flex flex-col items-center gap-4">
           <Plane className="w-12 h-12 text-brand animate-pulse" />
           <p className="text-slate-400 font-medium tracking-tight">Cargando inteligencia de vuelos...</p>
@@ -529,7 +585,7 @@ export default function App() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#020617] p-6">
+      <div className="min-h-screen flex items-center justify-center bg-bg-main p-6">
         <div className="glass-panel p-8 max-w-md text-center flex flex-col items-center gap-4">
           <AlertCircle className="w-12 h-12 text-rose-500" />
           <h2 className="text-xl font-bold">Error de conexión</h2>
@@ -546,7 +602,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen font-sans bg-[#020617] relative overflow-hidden">
+    <div className="min-h-screen font-sans bg-bg-main relative overflow-hidden">
       {/* Cyber Aesthetics */}
       {showSweeper && (
         <>
@@ -557,12 +613,12 @@ export default function App() {
       )}
       
       {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-slate-800 bg-[#0f172a]">
+      <div className="md:hidden flex items-center justify-between p-4 border-b border-slate-800 bg-bg-panel">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
             <Plane className="w-5 h-5 text-black" strokeWidth={3} />
           </div>
-          <span className="font-bold tracking-tight">JETSMART <span className="font-light opacity-60 italic">ANALYZER</span></span>
+          <span className="font-bold tracking-tight text-white">JETSMART <span className="font-light opacity-60 italic">ANALYZER</span></span>
         </div>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
           <Menu className="w-6 h-6 text-slate-400" />
@@ -577,7 +633,7 @@ export default function App() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="fixed md:relative z-40 w-72 h-full md:h-screen border-r border-slate-800 bg-[#0f172a] p-6 flex flex-col"
+            className="fixed md:relative z-40 w-72 h-full md:h-screen border-r border-slate-800 bg-bg-panel p-6 flex flex-col"
           >
             <div className="hidden md:flex flex-col gap-1 mb-10">
               <div className="flex items-center gap-3">
@@ -668,13 +724,17 @@ export default function App() {
                             <label className="text-[9px] uppercase font-black text-slate-600 flex items-center gap-2">
                               <Palette className="w-3 h-3" /> Esquema de Color
                             </label>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              {[
-                                { id: 'default', label: 'Cyan', color: 'bg-cyan-400' },
-                                { id: 'scanner', label: 'Scanner', color: 'bg-green-500' },
-                                { id: 'amber', label: 'Amber', color: 'bg-amber-500' },
-                                { id: 'nebula', label: 'Nebula', color: 'bg-purple-500' }
-                              ].map((t) => (
+                             <div className="grid grid-cols-2 gap-1.5">
+                               {[
+                                 { id: 'default', label: 'Cyan', color: 'bg-cyan-400' },
+                                 { id: 'scanner', label: 'Scanner', color: 'bg-green-500' },
+                                 { id: 'amber', label: 'Amber', color: 'bg-amber-500' },
+                                 { id: 'nebula', label: 'Nebula', color: 'bg-purple-500' },
+                                 { id: 'ruby', label: 'Ruby', color: 'bg-red-600' },
+                                 { id: 'emerald', label: 'Emerald', color: 'bg-emerald-500' },
+                                 { id: 'cobalt', label: 'Cobalt', color: 'bg-blue-600' },
+                                 { id: 'sunset', label: 'Sunset', color: 'bg-orange-500' }
+                               ].map((t) => (
                                 <button 
                                   key={t.id}
                                   onClick={() => setTheme(t.id as any)}
@@ -692,15 +752,26 @@ export default function App() {
                               {showSweeper ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                               Efectos Visuales
                             </label>
-                            <button 
-                              onClick={() => setShowSweeper(!showSweeper)}
-                              className={`w-full py-1.5 px-3 rounded-md text-[9px] font-black uppercase flex items-center justify-between border transition-all ${showSweeper ? 'bg-brand/10 border-brand/50 text-brand' : 'bg-slate-800/20 border-transparent text-slate-500 hover:bg-slate-800/40'}`}
-                            >
-                              <span>Radar Sweeper</span>
-                              <span className={showSweeper ? 'text-brand' : 'text-slate-700'}>
-                                {showSweeper ? 'ON' : 'OFF'}
-                              </span>
-                            </button>
+                            <div className="space-y-1.5">
+                              <button 
+                                onClick={() => setShowSweeper(!showSweeper)}
+                                className={`w-full py-1.5 px-3 rounded-md text-[9px] font-black uppercase flex items-center justify-between border transition-all ${showSweeper ? 'bg-brand/10 border-brand/50 text-brand' : 'bg-slate-800/20 border-transparent text-slate-500 hover:bg-slate-800/40'}`}
+                              >
+                                <span>Radar Sweeper</span>
+                                <span className={showSweeper ? 'text-brand' : 'text-slate-700'}>
+                                  {showSweeper ? 'ON' : 'OFF'}
+                                </span>
+                              </button>
+                              <button 
+                                onClick={() => setIsDeepMode(!isDeepMode)}
+                                className={`w-full py-1.5 px-3 rounded-md text-[9px] font-black uppercase flex items-center justify-between border transition-all ${isDeepMode ? 'bg-brand/10 border-brand/50 text-brand' : 'bg-slate-800/20 border-transparent text-slate-500 hover:bg-slate-800/40'}`}
+                              >
+                                <span>Modo Profundo</span>
+                                <span className={isDeepMode ? 'text-brand' : 'text-slate-700'}>
+                                  {isDeepMode ? 'ON' : 'OFF'}
+                                </span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </motion.div>
@@ -805,7 +876,8 @@ export default function App() {
                     {[
                       { id: 'detailed', icon: LayoutDashboard, label: 'Detalle' },
                       { id: 'multi', icon: Grid, label: 'Multi' },
-                      { id: 'calendar', icon: CalendarDays, label: 'Mensual' }
+                      { id: 'calendar', icon: CalendarDays, label: 'Mensual' },
+                      { id: 'daily', icon: CalendarIcon, label: 'Diario' }
                     ].map((mode) => (
                       <button
                         key={mode.id}
@@ -914,7 +986,7 @@ export default function App() {
                 <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
                   <CalendarIcon className="w-4 h-4 text-brand" />
                 </div>
-                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">Resumen de Disponibilidad por Fecha</h3>
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">Resumen de Disponibilidad por Fecha ({origin}-{destination})</h3>
               </div>
               <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-widest text-slate-500">
                 <div className="flex items-center gap-2">
@@ -956,7 +1028,7 @@ export default function App() {
               >
                 <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-3">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                    Probabilidades de Canje por Día
+                    Probabilidades de Canje por Día ({origin}-{destination})
                   </h3>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
@@ -1086,11 +1158,11 @@ export default function App() {
               <div className="glass-panel p-6 group transition-all">
                 <div className="flex items-center justify-between mb-8 border-b border-slate-800 pb-3">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                    Volumen de Vuelos Detectados (Promedio)
+                    Volumen de Vuelos Detectados (Promedio) ({origin}-{destination})
                   </h3>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                       <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                       <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: themeColor }} />
                        <span className="text-[8px] font-bold text-slate-600 uppercase">Promedio Vuelos</span>
                     </div>
                   </div>
@@ -1116,7 +1188,7 @@ export default function App() {
                       />
                       <Bar dataKey="avgFlights" radius={[4, 4, 0, 0]} barSize={24}>
                         {stats?.dayStats.map((entry, index) => (
-                          <Cell key={`cell-vol-${index}`} fill="#f59e0b" fillOpacity={0.8} />
+                          <Cell key={`cell-vol-${index}`} fill={themeColor} fillOpacity={0.8} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -1171,7 +1243,7 @@ export default function App() {
 
         <div className="glass-panel flex-1 overflow-hidden flex flex-col mb-8">
           <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Histórico de Disponibilidad</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-300">Histórico de Disponibilidad ({origin}-{destination})</h3>
             <span className="text-[10px] text-slate-500 font-bold">TODOS LOS REGISTROS</span>
           </div>
           <div className="overflow-y-auto max-h-[500px] custom-scrollbar">
@@ -1238,7 +1310,8 @@ export default function App() {
             {[
               { id: 'detailed', icon: LayoutDashboard, label: 'Detalle' },
               { id: 'multi', icon: Grid, label: 'Multi' },
-              { id: 'calendar', icon: CalendarDays, label: 'Mensual' }
+              { id: 'calendar', icon: CalendarDays, label: 'Mensual' },
+              { id: 'daily', icon: CalendarIcon, label: 'Diario' }
             ].map((mode) => (
               <button
                 key={mode.id}
@@ -1353,11 +1426,34 @@ export default function App() {
             </div>
             <div className="flex items-center gap-2">
                <div className="w-2 h-2 rounded-full bg-brand animate-pulse shadow-[0_0_8px_rgba(var(--theme-primary),0.6)]" />
-               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Abril 2026 — {getAirportLabel(origin)} a {getAirportLabel(destination)}</p>
+               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
+                 {format(currentMonth, 'MMMM yyyy', { locale: es })} — {getAirportLabel(origin)} a {getAirportLabel(destination)}
+               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+               <button 
+                 onClick={prevMonth}
+                 disabled={!canGoPrev}
+                 className={`p-1.5 rounded-lg transition-all ${canGoPrev ? 'hover:bg-slate-800 text-slate-400 hover:text-brand' : 'text-slate-700 cursor-not-allowed opacity-50'}`}
+                 title={canGoPrev ? "Mes Anterior" : "No hay más datos anteriores"}
+               >
+                 <ChevronLeft className="w-4 h-4" />
+               </button>
+               <span className="text-[10px] font-black uppercase text-slate-300 px-2 min-w-[100px] text-center">
+                 {format(currentMonth, 'MMM yyyy', { locale: es })}
+               </span>
+               <button 
+                 onClick={nextMonth}
+                 disabled={!canGoNext}
+                 className={`p-1.5 rounded-lg transition-all ${canGoNext ? 'hover:bg-slate-800 text-slate-400 hover:text-brand' : 'text-slate-700 cursor-not-allowed opacity-50'}`}
+                 title={canGoNext ? "Mes Siguiente" : "No hay más datos futuros"}
+               >
+                 <ChevronRight className="w-4 h-4" />
+               </button>
+            </div>
             <button 
               onClick={exportToPDF}
               className="hidden sm:flex items-center gap-2 px-4 py-2 bg-slate-800/80 hover:bg-slate-700 text-brand text-[10px] font-black uppercase tracking-widest rounded-xl border border-brand/20 transition-all active:scale-95"
@@ -1369,7 +1465,8 @@ export default function App() {
               {[
                 { id: 'detailed', icon: LayoutDashboard, label: 'Detalle' },
                 { id: 'multi', icon: Grid, label: 'Multi' },
-                { id: 'calendar', icon: CalendarDays, label: 'Mensual' }
+                { id: 'calendar', icon: CalendarDays, label: 'Mensual' },
+                { id: 'daily', icon: CalendarIcon, label: 'Diario' }
               ].map((mode) => (
                 <button
                   key={mode.id}
@@ -1401,8 +1498,8 @@ export default function App() {
             ))}
             
             {(() => {
-              const startDate = startOfMonth(new Date(2026, 3, 1));
-              const endDate = endOfMonth(new Date(2026, 3, 30));
+              const startDate = startOfMonth(currentMonth);
+              const endDate = endOfMonth(currentMonth);
               const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
               const startDay = startDate.getDay();
               const placeholders = Array.from({ length: startDay });
@@ -1416,12 +1513,13 @@ export default function App() {
                     const dateStr = format(date, 'yyyy-MM-dd');
                     const dayData = aggregatedData?.availability.find(a => a.date === dateStr);
                     const hasFlights = dayData && dayData.count > 0;
-                    const isTodayDate = isToday(date) || (date.getDate() === 22 && date.getMonth() === 3);
+                    const isTodayDate = isToday(date);
+                    const hasData = !!dayData;
                     
                     return (
                       <div 
                         key={dateStr} 
-                        className={`bg-slate-900/80 p-3 md:p-4 min-h-[80px] md:min-h-[120px] flex flex-col transition-all relative border border-white/[0.02] group overflow-hidden ${hasFlights ? 'hover:bg-brand/5 cursor-pointer' : 'opacity-30'}`}
+                        className={`bg-slate-900/80 p-3 md:p-4 min-h-[80px] md:min-h-[120px] flex flex-col transition-all relative border border-white/[0.02] group overflow-hidden ${hasFlights ? 'hover:bg-brand/5 cursor-pointer' : (hasData ? 'hover:bg-rose-500/5' : 'opacity-30')}`}
                       >
                         {showSweeper && hasFlights && (
                           <div className="sonar-sweeper opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1430,15 +1528,27 @@ export default function App() {
                           {format(date, 'd')}
                         </span>
                         
-                        {dayData && hasFlights && (
+                        {dayData && (
                           <div className="mt-auto relative z-10">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <div className="w-1.5 h-1.5 rounded-full bg-brand shadow-[0_0_6px_rgba(var(--theme-primary),0.8)]" />
-                              <span className="text-[13px] font-black text-white">{dayData.count}</span>
-                            </div>
-                            <div className="text-[10px] font-black text-brand leading-none glow-text">
-                              ${(dayData.tax / 1000).toFixed(1)}k
-                            </div>
+                            {hasFlights ? (
+                              <>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-brand shadow-[0_0_6px_rgba(var(--theme-primary),0.8)]" />
+                                  <span className="text-[13px] font-black text-white">{dayData.count}</span>
+                                </div>
+                                <div className="text-[10px] font-black text-brand leading-none glow-text">
+                                  ${(dayData.tax / 1000).toFixed(1)}k
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" />
+                                  <span className="text-[13px] font-black text-rose-500">0</span>
+                                </div>
+                                <span className="text-[7px] font-bold text-rose-500/60 uppercase tracking-tighter">Sin Disponibilidad</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1451,8 +1561,188 @@ export default function App() {
         </div>
       </motion.div>
     )}
-    </AnimatePresence>
+    {viewMode === 'daily' && (
+      <motion.div 
+        key="daily-view"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        className="space-y-6"
+      >
+        <div className="glass-panel p-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-brand/10 flex items-center justify-center border border-brand/20">
+                <CalendarIcon className="w-6 h-6 text-brand" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black uppercase italic text-white flex items-center gap-2">
+                  Explorador Diario <span className="text-brand not-italic">({origin})</span>
+                </h3>
+                <p className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+                  {format(selectedDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+               <div className="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded-xl border border-slate-800">
+                  <button 
+                    onClick={prevDay}
+                    className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-brand transition-all"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <div className="px-4 text-center">
+                    <span className="block text-[11px] font-black uppercase text-white">
+                      {format(selectedDate, 'dd MMM', { locale: es })}
+                    </span>
+                    <span className="block text-[8px] font-bold text-slate-500 uppercase">
+                      {format(selectedDate, 'EEEE', { locale: es })}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={nextDay}
+                    className="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-brand transition-all"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+               </div>
+               <button 
+                 onClick={() => setSelectedDate(new Date())}
+                 className="px-4 py-3 bg-slate-800/80 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all active:scale-95"
+               >
+                 Hoy
+               </button>
+               <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-800 gap-1 ml-2">
+                 {[
+                   { id: 'detailed', icon: LayoutDashboard, label: 'Detalle' },
+                   { id: 'multi', icon: Grid, label: 'Multi' },
+                   { id: 'calendar', icon: CalendarDays, label: 'Mensual' },
+                   { id: 'daily', icon: CalendarIcon, label: 'Diario' }
+                 ].map((mode) => (
+                   <button
+                     key={mode.id}
+                     onClick={() => setViewMode(mode.id as any)}
+                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                       viewMode === mode.id 
+                         ? 'bg-brand text-slate-900 shadow-[0_0_15px_rgba(var(--theme-primary),0.4)]' 
+                         : 'text-slate-500 hover:text-slate-300'
+                     }`}
+                   >
+                     <mode.icon className="w-3 h-3" />
+                     <span className="hidden sm:inline">{mode.label}</span>
+                   </button>
+                 ))}
+               </div>
+            </div>
+          </div>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {(() => {
+            const dateStr = format(selectedDate, 'yyyy-MM-dd');
+            const originAirports = groupBUE && BUE_AIRPORTS.includes(origin) ? BUE_AIRPORTS : [origin];
+            
+            const routesFromOrigin = data.filter(d => {
+              const [o] = d.route.split('-');
+              return originAirports.includes(o);
+            });
+
+            if (routesFromOrigin.length === 0) {
+              return (
+                <div className="col-span-full glass-panel p-20 flex flex-col items-center gap-4 text-center">
+                  <AlertCircle className="w-12 h-12 text-slate-600" />
+                  <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No se encontraron rutas programadas para {origin}</p>
+                </div>
+              );
+            }
+
+            return routesFromOrigin.map(routeData => {
+              const dest = routeData.route.split('-')[1];
+              const dayAvailability = routeData.availability.find(a => a.date === dateStr);
+              const isAvailable = dayAvailability && dayAvailability.count > 0;
+              const seats = dayAvailability?.count || 0;
+
+              return (
+                <motion.div 
+                  key={routeData.route}
+                  whileHover={{ y: -4 }}
+                  className={`glass-panel p-5 relative overflow-hidden group border-l-4 ${isAvailable ? 'border-l-brand' : 'border-l-slate-800 opacity-60'}`}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-tighter mb-1">Destino</div>
+                      <div className="text-2xl font-black text-white italic leading-none">{dest}</div>
+                      <div className="text-[9px] font-bold text-slate-500 uppercase truncate max-w-[120px]">
+                        {AIRPORT_NAMES[dest] || 'Desconocido'}
+                      </div>
+                    </div>
+                    <div className={`p-2 rounded-lg ${isAvailable ? 'bg-brand/10 text-brand' : 'bg-slate-800 text-slate-600'}`}>
+                      <Plane className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <div className="text-[9px] font-black text-slate-600 uppercase mb-1">Disponibilidad</div>
+                      <div className={`text-sm font-black ${isAvailable ? 'text-brand' : 'text-slate-500'}`}>
+                        {isAvailable ? `${seats} ASIENTOS` : 'SIN ASIENTOS'}
+                      </div>
+                    </div>
+                    {isAvailable && (
+                      <div className="flex items-center gap-1">
+                        {[...Array(Math.min(seats, 3))].map((_, i) => (
+                          <div key={i} className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tiny route indicator */}
+                  <div className="absolute top-2 right-2 opacity-10 font-black text-[30px] italic pointer-events-none select-none -skew-x-12">
+                    {dest}
+                  </div>
+                </motion.div>
+              );
+            });
+          })()}
+        </div>
+
+        {/* Global summary for the day */}
+        <div className="glass-panel p-6 border-brand/20 bg-brand/[0.02]">
+           <div className="flex items-center gap-6">
+              <div className="flex-1">
+                <h4 className="text-[10px] font-black text-brand uppercase tracking-widest mb-1">Estado de Red Global ({origin})</h4>
+                <div className="flex items-baseline gap-2">
+                   <span className="text-3xl font-black text-white italic">
+                     {(() => {
+                       const dateStr = format(selectedDate, 'yyyy-MM-dd');
+                       const originAirports = groupBUE && BUE_AIRPORTS.includes(origin) ? BUE_AIRPORTS : [origin];
+                       let total = 0;
+                       data.forEach(d => {
+                         if (originAirports.includes(d.route.split('-')[0])) {
+                           const day = d.availability.find(a => a.date === dateStr);
+                           if (day) total += day.count;
+                         }
+                       });
+                       return total;
+                     })()}
+                   </span>
+                   <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Asientos Totales</span>
+                </div>
+              </div>
+              <div className="h-12 w-px bg-slate-800" />
+              <div className="flex-1">
+                 <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Fecha de Búsqueda</h4>
+                 <div className="text-sm font-bold text-white uppercase">{format(selectedDate, 'dd MMMM yyyy', { locale: es })}</div>
+              </div>
+           </div>
+        </div>
+      </motion.div>
+    )}
+    </AnimatePresence>
+  </div>
         
         <footer className="text-center text-slate-600 text-[10px] font-bold uppercase tracking-widest pb-10">
           JetSmart Analyzer Engine • V1.0.4 • Datos Certificados
